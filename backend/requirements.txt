@@ -1,0 +1,11 @@
+Flask
+requests
+beautifulsoup4
+openai
+langchain
+faiss-cpu
+python-dotenv
+flask-cors
+tiktoken
+google-cloud-logging
+google-cloud-storage
