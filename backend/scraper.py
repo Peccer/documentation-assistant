@@ -2,20 +2,20 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import logging
+from typing import List, Dict, Set, Optional
 
-def is_relative_url(url):
+def is_relative_url(url: str) -> bool:
     """Checks if a URL is relative"""
     parsed_url = urlparse(url)
     return not parsed_url.scheme
 
-def is_same_domain(base_url, url):
+def is_same_domain(base_url: str, url: str) -> bool:
     """Check if both URLs have the same domain."""
     base_domain = urlparse(base_url).netloc
     url_domain = urlparse(url).netloc
     return base_domain == url_domain
 
-
-def get_links_from_page(base_url, page_url):
+def get_links_from_page(base_url: str, page_url: str) -> List[str]:
     """Gets all valid links from a page."""
     try:
         response = requests.get(page_url)
@@ -36,7 +36,7 @@ def get_links_from_page(base_url, page_url):
          logging.error(f"Error fetching {page_url}: {e}")
          return []
 
-def extract_text_from_page(page_url):
+def extract_text_from_page(page_url: str) -> str:
     """Extracts text from a page."""
     try:
         response = requests.get(page_url)
@@ -50,26 +50,30 @@ def extract_text_from_page(page_url):
         logging.error(f"Error fetching {page_url}: {e}")
         return ""
 
-def scrape_documentation(base_url, max_pages=10):
-    """Crawls and scrapes documentation."""
-    visited = set()
-    to_visit = [base_url]
-    scraped_data = {}
-    
-    while to_visit and len(visited) < max_pages:
-        url = to_visit.pop(0)
-        if url in visited:
-             continue
-        logging.info(f"Scraping {url}")
-        
-        visited.add(url)
-        text = extract_text_from_page(url)
-        if text:
-            scraped_data[url] = text
-        
-        links = get_links_from_page(base_url, url)
-        for link in links:
-            if link not in visited:
-                to_visit.append(link)
-    logging.info(f"Scraped {len(visited)} pages.")
-    return scraped_data
+
+def scrape_documentation(base_url: str, max_pages: int, scraped_data: Optional[Dict[str,str]]=None) -> Dict[str, str]:
+ """Crawls and scrapes documentation."""
+ if scraped_data is None:
+     visited: Set[str] = set()
+ else:
+     visited = set(scraped_data.keys())
+ to_visit = [base_url]
+ scraped_data = scraped_data if scraped_data else {}
+ 
+ while to_visit and len(visited) < max_pages:
+     url = to_visit.pop(0)
+     if url in visited:
+         continue
+     logging.info(f"Scraping {url}")
+     
+     visited.add(url)
+     text = extract_text_from_page(url)
+     if text:
+         scraped_data[url] = text
+     
+     links = get_links_from_page(base_url, url)
+     for link in links:
+         if link not in visited:
+            to_visit.append(link)
+ logging.info(f"Scraped {len(visited)} pages.")
+ return scraped_data

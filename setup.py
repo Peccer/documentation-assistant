@@ -15,6 +15,7 @@ setup(
        'flask-cors',
        'tiktoken',
        'google-cloud-logging',
-       'google-cloud-storage'
+       'google-cloud-storage',
+       'google-cloud-aiplatform'
    ],
 )
