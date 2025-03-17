@@ -2,6 +2,6 @@
 *venv/*
 *venv
 backend/conversations.json
-backend/corpuse_registry.json
+backend/corpus_registry.json
 __pycache__
 .vscode
