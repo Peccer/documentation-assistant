@@ -76,6 +76,6 @@ steps:
     - '--set-env-vars'
     - "LOG_LEVEL=DEBUG"
 substitutions:
-   _OPENAI_API_KEY: "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"
+   _OPENAI_API_KEY: "openai_api_key"
    _GCS_BUCKET_NAME: "documentation-assistant"
    _PROJECT_ID: "gpt-projects-scalable"

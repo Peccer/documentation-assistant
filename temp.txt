@@ -1,0 +1,1967 @@
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\cloudbuild.yaml 
+steps:
+  # Build backend image
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'build-backend'
+  args:
+    - 'build'
+    - '-t'
+    - 'gcr.io/$PROJECT_ID/documentation-assistant-backend:$SHORT_SHA'
+    - '-f'
+    - 'backend/Dockerfile'
+    - 'backend'
+
+# Push backend image
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'push-backend'
+  args:
+    - 'push'
+    - 'gcr.io/$PROJECT_ID/documentation-assistant-backend:$SHORT_SHA'
+
+# Deploy backend to Cloud Run
+- name: 'gcr.io/google-appengine/cloud-builders/gcloud'
+  id: 'deploy-backend'
+  args:
+    - 'run'
+    - 'deploy'
+    - 'documentation-assistant-backend'
+    - '--image'
+    - 'gcr.io/$PROJECT_ID/documentation-assistant-backend:$SHORT_SHA'
+    - '--region'
+    - 'us-central1'  # Change to your region
+    - '--platform'
+    - 'managed'
+    - '--allow-unauthenticated'
+    - '--set-env-vars'
+    - "LOG_LEVEL=DEBUG"
+    - '--set-env-vars'
+    - "GCS_BUCKET_NAME=${_GCS_BUCKET_NAME}"
+    - '--set-env-vars'
+    - "PROJECT_ID=${_PROJECT_ID}"
+
+
+# Build frontend image
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'build-frontend'
+  args:
+    - 'build'
+    - '-t'
+    - 'gcr.io/$PROJECT_ID/documentation-assistant-frontend:$SHORT_SHA'
+    - '-f'
+    - 'frontend/Dockerfile'
+    - 'frontend'
+
+# Push frontend image
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'push-frontend'
+  args:
+    - 'push'
+    - 'gcr.io/$PROJECT_ID/documentation-assistant-frontend:$SHORT_SHA'
+
+# Deploy frontend to Cloud Run
+- name: 'gcr.io/google-appengine/cloud-builders/gcloud'
+  id: 'deploy-frontend'
+  args:
+    - 'run'
+    - 'deploy'
+    - 'documentation-assistant-frontend'
+    - '--image'
+    - 'gcr.io/$PROJECT_ID/documentation-assistant-frontend:$SHORT_SHA'
+    - '--region'
+    - 'us-central1'  # Change to your region
+    - '--platform'
+    - 'managed'
+    - '--allow-unauthenticated'
+    - '--set-env-vars'
+    - "BACKEND_URL=https://documentation-assistant-backend-xxxxxxxxxxx-ew.a.run.app" # Replace with your backend Cloud Run url
+    - '--set-env-vars'
+    - "LOG_LEVEL=DEBUG"
+substitutions:
+   _OPENAI_API_KEY: "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"
+   _GCS_BUCKET_NAME: "documentation-assistant"
+   _PROJECT_ID: "gpt-projects-scalable" 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\README.md 
+# Documentation Chat Assistant
+
+A tool that crawls and scrapes documentation from a given URL and then uses RAG with OpenAI's GPT to create a chat assistant.
+
+## Features
+- Automatically scrapes website's API documentation using provided base URL.
+- Utilizes RAG and OpenAI GPT for chat-based question answering.
+- Frontend is a Streamlit application and backend is a Flask app
+- Backend and frontend are hosted in Google Cloud Run.
+- Cloud Build pipeline for automated deployment.
+
+## Setup Instructions
+
+### Prerequisites
+- A Google Cloud Project.
+- Google Cloud SDK installed and configured.
+- Docker installed.
+- A GitHub repository for your project.
+- OpenAI API Key
+
+### Steps
+
+1. **Clone the repository:**
+    ```bash
+    git clone <your_repository_url>
+    cd documentation-assistant
+    ```
+2. **Set up environment variables:**
+   -   Create a `.env` file in each `backend` and `frontend` directories.
+   -   Add necessary variables, such as `OPENAI_API_KEY`, `GCS_BUCKET_NAME` (in backend/.env) and `BACKEND_URL`(only in frontend/.env)
+3. **Deploy cloud build**
+
+   -  Create a cloud build trigger
+   -  Connect it to your main branch
+   -  Commit the changes
+
+##  Notes
+
+-   The application uses `gpt-3.5-turbo` model by default. You can change it in the `rag.py` file.
+-   Cloud build will deploy the frontend and the backend to google cloud run, the `BACKEND_URL` should be replaced with your backend url in the `cloudbuild.yaml` file.
+-   The backend exposes a health check endpoint `/health`, you can use it to check if the service is up and running.
+-   The scraping logic in `scraper.py` could be fine tuned based on the website structure.
+- The logging level can be set in the docker enviroment variable LOG_LEVEL, the values can be DEBUG, INFO, WARNING, ERROR and CRITICAL 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\setup.py 
+from setuptools import setup, find_packages
+
+setup(
+   name='documentation_assistant',
+   version='0.1.0',
+   packages=find_packages(),
+   install_requires=[
+       'Flask',
+       'requests',
+       'beautifulsoup4',
+       'openai',
+       'langchain',
+       'faiss-cpu',
+       'python-dotenv',
+       'flask-cors',
+       'tiktoken',
+       'google-cloud-logging',
+       'google-cloud-storage',
+       'google-cloud-aiplatform'
+   ],
+) 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\backend\conversations.json 
+{
+  "fdd33287-55de-4756-aee2-a654bafdc916": {
+    "id": "fdd33287-55de-4756-aee2-a654bafdc916",
+    "title": "taskmastergpt.nl",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is taskmastergpt.nl?",
+        "timestamp": 1737221011.3366866
+      },
+      {
+        "role": "assistant",
+        "content": "Taskmastergpt.nl is a website that offers AI-powered tools for automating tasks. The website creator uses large language models (LLMs), Python, Google Cloud Platform and other technologies to build tools that automate both simple and complex tasks. Some of their tools include a Trustpilot Reviews Scraper, a Documentation Chat Assistant, and a Generative AI Article Summarizer. \n",
+        "timestamp": 1737221015.457933
+      },
+      {
+        "role": "user",
+        "content": "What else could you tell about taskmastergpt.nl?",
+        "timestamp": 1737221142.0024161
+      },
+      {
+        "role": "assistant",
+        "content": "Taskmastergpt.nl is a website created by someone who uses generative AI, Python, Google Cloud Platform, and other technologies to automate tasks. They have created several tools including a Trustpilot Reviews Scraper, a Documentation Chat Assistant, a Generative AI Article Summarizer, a Food Magazine Ad, and an Influencer Marketing tool. The website states that they are working on new marketing projects and are open to collaboration.\n",
+        "timestamp": 1737221145.8906791
+      }
+    ],
+    "created_at": 1737220981.8252704
+  },
+  "7b6f0ec0-66f8-4483-ab46-486f4f0f1a7e": {
+    "id": "7b6f0ec0-66f8-4483-ab46-486f4f0f1a7e",
+    "title": "fundreport",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is fundreport?",
+        "timestamp": 1737227100.9873137
+      },
+      {
+        "role": "assistant",
+        "content": "FundReport is a guide to Dutch hedge funds. It aims to make the world of hedge funds transparent and accessible by offering an extensive overview of these funds. FundReport provides information on different types of hedge funds, their strategies, expected returns, costs, and risks.  It also addresses the question of which types of hedge funds offer the best protection against market downturns.  FundReport believes that every Dutch investor can benefit from the advantages of Dutch hedge funds. \n",
+        "timestamp": 1737227103.9851255
+      }
+    ],
+    "created_at": 1737227070.0688143
+  },
+  "503f0304-848e-4b65-9661-5c1c6fc9ea9d": {
+    "id": "503f0304-848e-4b65-9661-5c1c6fc9ea9d",
+    "title": "userlabs tech",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What about userlab's tech stack?",
+        "timestamp": 1737229437.3115242
+      },
+      {
+        "role": "user",
+        "content": "What about userlab's tech stack?",
+        "timestamp": 1737229669.5185597
+      },
+      {
+        "role": "assistant",
+        "content": "Userlabs' tech stack consists of:\n\n**Frontend:**\n\n* React\n* Tailwind CSS\n* Node.js for running React development server\n\n**Backend:**\n\n* Django REST API (Python)\n\n**Deployment:**\n\n* Cloud Run (containerized with Docker)\n* Heroku\n\n**Data Storage:**\n\n* PostgreSQL for relational data (Users, Personas, Processed Outputs)\n* Cloud SQL (PostgreSQL)\n* Cloud Storage (GCS) buckets for image storage and serving \n\n**Additional Information:**\n\n* The choice between PostgreSQL and Cloud SQL depends on the flexibility of the data schema.\n* Django handles OpenAI API interfaces and ETL.\n* Userlabs utilizes signed URLs for frontend image uploads to GCS. \n",
+        "timestamp": 1737229677.7550194
+      },
+      {
+        "role": "user",
+        "content": "Do you believe it's a good tech stack given userlab's comprehensive product overview?",
+        "timestamp": 1737230654.3077812
+      },
+      {
+        "role": "assistant",
+        "content": "I'm sorry, I don't have access to Userlabs' product overview or enough information to determine if their tech stack is suitable for their needs. I can only access the provided information.  \n",
+        "timestamp": 1737230658.0476716
+      },
+      {
+        "role": "user",
+        "content": "Do you believe its good, given userlab's comprehensive product overview?",
+        "timestamp": 1737230691.7160356
+      },
+      {
+        "role": "assistant",
+        "content": "I'm sorry, but I don't have enough information to determine if Userlabs' tech stack is suitable for their needs. I can only access the information you have provided, which is limited to the product overview. \n\nTo offer an informed opinion on the tech stack, I would need more context about Userlabs' specific product features and their target audience.  \n",
+        "timestamp": 1737230699.3139403
+      }
+    ],
+    "created_at": 1737229409.6975384
+  },
+  "11d06aa4-7b2a-4cc2-a5f0-8006f042b33d": {
+    "id": "11d06aa4-7b2a-4cc2-a5f0-8006f042b33d",
+    "title": "Pieter!",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Wie is Pieter?",
+        "timestamp": 1737370283.09528
+      },
+      {
+        "role": "assistant",
+        "content": "Pieter Oranje is een persoon die een nieuwe website heeft gemaakt. \n",
+        "timestamp": 1737370287.6492317
+      },
+      {
+        "role": "user",
+        "content": "Kan je mij iets meer vertellen over Pieter Oranje?",
+        "timestamp": 1737370315.9272997
+      },
+      {
+        "role": "assistant",
+        "content": "Pieter Oranje heeft een nieuwe website gemaakt die te vinden is op https://framer.com/projects/Pieter-Oranje-website-new--EmBn1lURsvHrtOWjQqXt-eqccW?node=fUGO3aZQj. \n",
+        "timestamp": 1737370320.6046417
+      }
+    ],
+    "created_at": 1737370120.432533
+  },
+  "c03562df-f734-43ff-9d02-ede478ce9d98": {
+    "id": "c03562df-f734-43ff-9d02-ede478ce9d98",
+    "title": "DurkaDurka",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Wie is Pieter?",
+        "timestamp": 1737371396.9907892
+      },
+      {
+        "role": "assistant",
+        "content": "Pieter is een freelance & interim marketingexpert voor duurzaamheidsorganisaties. Hij is creatief en gedreven en ziet kansen die hij benut door inzicht te combineren met een doenersmentaliteit. Hij is goed in strategisch denken en het consistent leveren van resultaten. \n",
+        "timestamp": 1737371401.4152653
+      },
+      {
+        "role": "user",
+        "content": "Welke projecten vind jij (als CRO en UX specialist), dat Pieter Oranje bovenaan moet plaatsen op zijn website?",
+        "timestamp": 1737371653.1132727
+      },
+      {
+        "role": "assistant",
+        "content": "Pieter Oranje is een freelance & interim marketingexpert voor duurzaamheidsorganisaties. Hij kan klanten helpen met een marketingstrategie, leadgeneratie, webshop optimalisatie, CRO audits en fractional CMO.  Ik zou aanraden om de \"Marketingstrategie\" en \"Webshop optimalisatie\" projecten bovenaan de website te plaatsen. Dit zijn waarschijnlijk de meest gezochte diensten door potentiële klanten. \n",
+        "timestamp": 1737371657.4820766
+      },
+      {
+        "role": "user",
+        "content": "Geef feedback op de content van Pieter Oranje's website. Je bent een copywriter en geeft uitbundig advies mbt copy voor portfolio landingspagina's van individuen",
+        "timestamp": 1737371820.323616
+      },
+      {
+        "role": "assistant",
+        "content": "De website van Pieter Oranje heeft veel potentie, maar de content kan nog beter. Als copywriter, kan ik enkele tips geven om de landingspagina's meer impact te geven:\n\n**1. Vertel Pieter's verhaal:** De landingspagina's geven goed weer wat Pieter doet, maar mist een persoonlijk tintje. Vertel zijn verhaal! Wat drijft hem? Wat maakt hem uniek? Wat is zijn passie? Dit maakt de landingspagina's interessanter en authentieker.\n\n**2. Focus op de klant:** De website focust vooral op wat Pieter doet. Verander de focus naar wat Pieter voor klanten kan betekenen. Beschrijf de voordelen van zijn diensten en hoe deze klanten helpen. Laat klanten in hun eigen woorden vertellen over hun ervaringen met Pieter.\n\n**3. Maak de tekst levendiger:** De website gebruikt veel zakelijke taal. Maak de tekst levendiger door gebruik te maken van anekdotes, voorbeelden en humor. Dit maakt de content boeiender en persoonlijker.\n\n**4. Gebruik sterke call-to-actions:** De landingspagina's missen duidelijke call-to-actions. Zorg ervoor dat bezoekers direct weten wat ze moeten doen. Voeg een duidelijke call-to-action toe op elke pagina, zoals \"Neem contact op\" of \"Download mijn portfolio\".\n\n**5. Optimaliseer de landingspagina's voor SEO:** Zorg ervoor dat de landingspagina's goed geoptimaliseerd zijn voor zoekmachines. Gebruik relevante trefwoorden, schrijf duidelijke meta-beschrijvingen en zorg voor een goede interne linkstructuur.\n\nDoor deze tips toe te passen, kan Pieter Oranje zijn landingspagina's nog effectiever maken en meer potentiële klanten aantrekken. \n",
+        "timestamp": 1737371827.9546618
+      }
+    ],
+    "created_at": 1737371368.0624366
+  },
+  "8a419f5e-89c1-4405-8aa8-7027b144fb38": {
+    "id": "8a419f5e-89c1-4405-8aa8-7027b144fb38",
+    "title": "Userlabs new",
+    "messages": [
+      {
+        "role": "user",
+        "content": "As a senior cloud engineer and Agentic Ai specialist, what recommendations would you make regarding Userlab's technical architecture, also considering userlab's product overview?",
+        "timestamp": 1737375108.1360035
+      },
+      {
+        "role": "assistant",
+        "content": "Okay, as a senior cloud engineer and Agentic AI specialist, let's analyze Userlabs' technical architecture and product overview to make some informed recommendations.\n\n**Current Architecture Summary:**\n\n*   **Frontend:** React + Tailwind CSS, Node.js for development, Firebase Hosting\n*   **Backend:** Django REST API (Python), deployed via Cloud Run (Docker) or Heroku\n*   **Data Storage:**\n    *   Relational: PostgreSQL (Compute Engine or Cloud SQL), Heroku psql. JSON fields for flexibility.\n    *   Image Storage: Google Cloud Storage (GCS) buckets, potentially local storage initially\n*   **Image Handling:** Frontend uploads to GCS via signed URLs.\n*   **Authentication:** Django's built-in system\n*   **Logging/Monitoring:** Stackdriver\n*   **CI/CD:** GitHub, potentially GitHub Actions or Google Cloud Build\n*   **Environment Config:** Google Secret Manager\n*   **AI Aspects:** Django handles OpenAI API and ETL processes for virtual persona generation using LLMs.\n\n**Product Overview Summary:**\n\nUserlabs is an AI-powered UX simulation platform that aims to provide instant, accessible, and actionable UX testing. It works by:\n\n1.  **Client Inputs:** Users upload designs, testing goals, context\n2.  **Persona Generation:** Generates virtual personas tailored to inputs using LLMs.\n3.  **Simulation Setup:** Virtual users are tasked with goals within the designs.\n4.  **Feedback Collection:** Virtual users provide human-like feedback.\n5.  **Result Analysis:** Insights visualized (UX scores, recommendations, impact on metrics)\n6.  **Iteration:** Design improvements based on feedback.\n\n**Recommendations:**\n\nHere's a breakdown of recommendations based on the provided context, separated by concerns:\n\n**1.  Scalability & Performance:**\n\n*   **Database:**\n    *   **Cloud SQL is the way to go**: Given the relational nature of the data (users, personas, processed outputs), Cloud SQL with PostgreSQL is appropriate. It also provides JSON field flexibility, so there is less reason to use NoSQL.\n    *   **Compute Engine Based Postgres:** Using Compute Engine is **not recommended** unless there are very specific requirements for direct database access that outweigh the simplicity and stability of Cloud SQL. Cloud SQL manages backups, upgrades, and security. It is preferred.\n    *   **Database Connection Pooling**: For Django, ensure a robust connection pooling mechanism. This can drastically improve performance, and prevent connection exhaustion, especially under load. This can be done via third party libraries.\n    *   **Horizontal Scaling:** Consider the future need for horizontal scaling of the database using a read replica setup if the current db instance isn't sufficient, and the application layer needs read only data access.\n*   **Backend:**\n    *   **Cloud Run:** Cloud Run is an excellent choice for a scalable, serverless environment. Leverage its containerized nature for easy scaling.\n    *   **Container Optimization:** Optimize the Docker container images for minimal size to improve cold start times.\n    *   **Load Balancing:** Ensure the Cloud Run deployment uses Google's load balancer for managing traffic across container instances and preventing single point of failure.\n*   **Frontend:**\n    *   **CDN Caching:** Utilize Firebase Hosting's CDN to cache assets effectively and improve load times for users worldwide.\n    *   **Code Splitting:** For the React frontend, implement code splitting to improve initial load performance.\n*   **Caching:**\n    *   **Redis/Memcached:** Use an in-memory cache like Redis or Memcached to store frequently accessed data. This would significantly reduce database load and speed up response times. Cache user persona generation, processed feedback, or other computations.\n    *   **Cache Invalidation:** Implement a proper strategy for invalidating cache as needed.\n\n**2.  Agentic AI and LLM Management:**\n\n*   **LLM API Optimization:** Optimize calls to the OpenAI API, especially concerning cost. You should analyze the frequency of calls and potentially cache/memoize expensive outputs to reduce compute costs, and latency.\n*   **Model Fine-tuning:** Over time, fine-tune LLMs on Userlabs' specific UX simulation data for better accuracy. This requires a dedicated data pipeline.\n*   **Data Pipeline:** Establish a robust pipeline for ETL of user data, LLM response data, and feedback for further LLM training, or model analysis. Consider Cloud Dataflow for this.\n*   **Monitoring:** Closely monitor LLM performance (accuracy, response time, costs).\n*   **Version Control**: Implement version control for models, as updates may degrade performance in a given case.\n\n**3.  Image Storage and Handling**\n\n*   **Signed URLs:** Signed URLs for image uploads to GCS is the best way to handle image upload security, while also reducing the strain on the backend to upload to the cloud. The client can upload straight to GCS.\n*   **Image Optimization:** Implement image optimization (resizing, compression) on upload to reduce storage costs, bandwidth usage, and load times.\n*   **GCS CDN:** Utilize GCS integrated CDN to serve images for optimized performance.\n*   **Metadata Handling**: Consider storing image metadata (dimensions, format, user associations) in the database, rather than in the JSON fields in Postgres. This allows you to query based on image properties, more efficiently.\n\n**4.  Security:**\n\n*   **Secret Management:** Google Secret Manager is appropriate for config.\n*   **Rate Limiting/Throttling:** Implement rate limiting and throttling on API endpoints to protect against abuse and denial-of-service attacks.\n*   **Input Validation:** Always validate and sanitize user inputs to prevent vulnerabilities like injection attacks.\n*   **Firebase Security Rules:** For Firebase hosting, review and configure security rules to minimize risks.\n*   **IAM:** Implement Identity Access Management on all services in GCS, Cloud Run, etc. to reduce exposure.\n\n**5.  CI/CD and Development:**\n\n*   **CI/CD Automation:** Utilize GitHub Actions or Google Cloud Build to create a robust CI/CD pipeline to automate builds, tests and deploys to all environments (staging, production etc).\n*   **Automated Testing**: Thoroughly automated tests (unit tests, integration tests, end-to-end tests) are essential for maintaining code quality.\n*   **Environment Variables:** Use environment variables for different environments (development, staging, production).\n*   **Infrastructure as Code (IaC):** Consider using Terraform for infrastructure provisioning and management. This will improve configuration consistency and can be tracked via git.\n\n**6.  Monitoring and Logging:**\n\n*   **Stackdriver:** Utilize Stackdriver for comprehensive logging, monitoring, and alerting for the entire platform.\n*   **Performance Monitoring:** Monitor key metrics for the backend, database and frontend to be able to proactively identify bottlenecks and performance issues.\n*   **Error Tracking:** Implement an error tracking system (e.g., Sentry) to capture and report errors. This is especially important for the frontend.\n\n**7.  General Recommendations:**\n\n*   **API Versioning:** Implement API versioning for backward compatibility as API evolves.\n*   **Documentation:** Ensure clear and up-to-date documentation for the API and the system.\n*   **Error Handling:** Implement proper error handling on both frontend and backend to provide a better user experience.\n*   **Load Testing:** Perform load tests to simulate different traffic scenarios before deploying changes to production.\n\n**Summary:**\n\nUserlabs has a solid foundation, but with the recommendations above, it can enhance scalability, performance, security, and AI capabilities to better deliver its product goals. The key areas of focus should be around optimization of the database, the LLM integration, API performance and efficient image handling.\n\nBy addressing these recommendations, Userlabs will have a more robust, scalable, and efficient platform to accelerate its goals of providing a high-quality UX simulation platform.\n",
+        "timestamp": 1737375123.9671004
+      }
+    ],
+    "created_at": 1737375013.778332
+  },
+  "d23db86e-c91c-4ea4-9dda-15e124f0c658": {
+    "id": "d23db86e-c91c-4ea4-9dda-15e124f0c658",
+    "title": "Pieter",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Kan je mij alsjeblieft iets meer vertellen over Pieter Oranje? Ik ben aan het overwegen een marketingklus bij hem neer te leggen en wil weten of hij daarvoor geschikt is",
+        "timestamp": 1737376214.695007
+      },
+      {
+        "role": "assistant",
+        "content": "Zeker! Pieter Oranje is een freelance marketingexpert met een focus op duurzaamheidsorganisaties. Hij heeft meer dan 13 jaar ervaring als startup founder, marketeer en salesmanager, waardoor hij een brede kennis en vaardigheden heeft op het gebied van marketing en sales.\n\nHier zijn een paar belangrijke punten over Pieter die je kunnen helpen bij je beslissing:\n\n**Sterke punten en expertise:**\n\n*   **Resultaatgericht:** Pieter zorgt voor resultaat onderaan de streep, van strategie tot uitvoering.\n*   **Creatief en gedreven:** Hij is creatief, gedreven en ziet kansen voor groei.\n*   **Klantgericht:** Hij denkt altijd vanuit de klant en is kritisch op gemaakte keuzes.\n*   **Praktisch:** Theoretische discussies zijn niet aan hem besteed, hij houdt van creativiteit en actie.\n*   **Teamspeler:** Pieter is een betrokken, leuke en oorspronkelijke collega die vanuit het teambelang denkt en werkt.\n*   **Expert in marketingstrategie:** Hij is de persoon om in te schakelen voor het ontwikkelen van marketingstrategieën, pakkende content en het bouwen van merken die blijven hangen.\n*   **Brengt energie en expertise:** Hij brengt energie, expertise en samenwerking naar een hoger niveau.\n*   **Growth hacking:** Hij heeft veel ervaring met het toepassen van growth marketing tactieken en heeft functies bekleed als Growth Hacker, Growth Marketeer, Marketing Manager en Hoofd Marketing.\n*   **Breed inzetbaar:** Hij is bekwaam in SEO, SEA, Content Marketing, Marketing Strategie, Growth Hacking, Conversion Rate Optimization (CRO), Sales Enablement, Sales, Digital Marketing en Ondernemerschap.\n*   **Ervaring met AI tools:** Pieter werkt met diverse AI-tools om productiviteit te verhogen.\n*   **Projectmanagement:** Hij is bekend met projectmanagementtools zoals Asana, ClickUp, Jira, Trello en Notion.\n\n**Wat anderen over hem zeggen:**\n\n*   **Marc Doum (RevelX):** Ziet Pieter als een professional met een brede interesse die enorm gemotiveerd is om maatschappelijk relevante vraagstukken op te lossen. Hij vindt dat Pieter het meest op zijn plek is in een ondernemende startup-omgeving.\n*   **Dorothee (Serve the City RH):** Vond het fijn om met Pieter te werken, omdat hij snel en enthousiast is.\n*   **Jurgen (Xerox):** Omschrijft Pieter als een echte professional die uitblinkt in strategisch denken en het consistent leveren van resultaten.\n*   **Algemeen:** Men prijst zijn vermogen om kansen te zien, ze te benutten, en dit te combineren met een \"doenersmentaliteit\".\n\n**Diensten die hij aanbiedt:**\n\n*   **Marketingstrategie:** Het ontwikkelen van duidelijke marketingstrategieën.\n*   **Leadgeneratie:** Het optimaliseren van het proces van bezoeker tot aankoop.\n*   **Promotievideo's:** Het creëren van pakkende promotievideo's.\n*   **SEO migratie:** Zorgen dat websites hun posities behouden bij een overgang naar een nieuw platform.\n*   **Strategisch marketingadvies:** Het geven van strategisch advies.\n*   **Webwinkeloptimalisatie:** Het optimaliseren van webwinkels om meer omzet te genereren.\n*   **Slimme marketing:** Het inzetten van slimme marketing voor duurzaamheidsorganisaties.\n*   **Conversion Rate Optimization (CRO):** Het verhogen van de conversie in de gehele marketing- en sales funnel.\n*   **Ontwikkelen van ideale klantprofielen**\n*   **Verbeteren van verkooptechnieken**\n*   **Uitwerken van marketing- en verkoopstrategieën.**\n\n**Aanvullende informatie:**\n\n*   Pieter is momenteel beschikbaar voor freelance- en interimopdrachten.\n*   Hij is gespecialiseerd in het helpen van duurzaamheidsorganisaties.\n*   Hij is nieuwsgierig en wil continu zijn doelgroep(en) beter begrijpen.\n*   Hij houdt ervan om veel te testen en uit te proberen om daarvan te leren.\n*   Hij heeft een sterke voorkeur voor het 'getting sh*t done'.\n\n**Kortom:** Pieter Oranje is een ervaren en veelzijdige marketingexpert met een sterke focus op duurzaamheid en resultaatgerichte aanpak. Hij is wellicht een goede match voor jouw marketingklus als je op zoek bent naar een creatieve en praktische professional met een sterke drive om te slagen.\n\nAls je meer wilt weten over specifieke projecten of diensten van Pieter, dan kun je zijn website bezoeken via [https://pieteroranje.com](https://pieteroranje.com) of een 15 minuten belafspraak inplannen.\n",
+        "timestamp": 1737376227.648301
+      }
+    ],
+    "created_at": 1737376156.0875218
+  },
+  "5e86dc9d-b4e5-4270-a949-8eb80dfb5321": {
+    "id": "5e86dc9d-b4e5-4270-a949-8eb80dfb5321",
+    "title": "Wie dit leest is gay",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Kan je mij iets over Tako vertellen?",
+        "timestamp": 1737376738.6044555
+      },
+      {
+        "role": "assistant",
+        "content": "Tako is a co-founder of three companies: Fund Report (June 2024-Present), Streamline Trading (September 2022-Present) and Oaky (June 2013 - January 2023). He is based in Amsterdam, Noord-Holland, Netherlands. His LinkedIn profile can be found at www.linkedin.com/in/tako-paddenburg-324144302. Tako's profile also mentions his expertise in statistics, financial markets and trading on the stock exchange. His current focus is on helping investors achieve stable returns. He studied Economics at Vrije Universiteit Amsterdam.\n",
+        "timestamp": 1737376743.2781029
+      }
+    ],
+    "created_at": 1737376683.0599985
+  },
+  "3dc8b3a1-ecd1-4d16-ade4-06b2387b563a": {
+    "id": "3dc8b3a1-ecd1-4d16-ade4-06b2387b563a",
+    "title": "tako en pieter",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Stel dat Tako en Pieter samen zouden gaan werken en een bedrijf op willen richten. Welke bedrijf denk jij dat ze dan op zouden moeten richten?",
+        "timestamp": 1737377081.9835057
+      },
+      {
+        "role": "assistant",
+        "content": "Het is interessant om te speculeren over wat voor bedrijf Tako en Pieter zouden kunnen oprichten, gezien hun achtergronden en vaardigheden. Laten we hun expertises eens naast elkaar leggen:\n\n**Pieter Oranje:**\n\n*   **Marketingexpert:** Pieter heeft een brede ervaring in marketing, van strategie tot uitvoering, met een focus op duurzame organisaties. Hij is expert in het ontwikkelen van marketingstrategieën, contentcreatie, merk opbouw en leadgeneratie. Hij blinkt uit in strategisch denken, is resultaatgericht en heeft een ondernemersmentaliteit.\n*   **Ervaring met startups:** Hij heeft ervaring in verschillende startup-omgevingen, waar hij een breed scala aan taken op zich nam (business development, sales, operations, etc.). Dit wijst op een flexibele en veelzijdige skillset.\n*   **Focus op duurzaamheid:** Pieter richt zich op duurzame organisaties, wat aangeeft dat hij een sterke interesse heeft in maatschappelijk verantwoord ondernemen.\n*   **Hands-on:** Hij is niet vies van hands-on werk en experimenteert graag met nieuwe tactieken.\n\n**Tako Paddenburgh:**\n\n*   **Financieel expert:** Tako heeft ervaring in financiële markten, statistiek, en handel op de beurs. Hij heeft gewerkt als mede-oprichter en portfolio manager, wat aangeeft dat hij niet alleen kennis van financiën heeft, maar ook ondernemerservaring.\n*   **Ondernemerschap:** Tako heeft meerdere bedrijven mede-opgericht, wat wijst op een sterk ondernemersinstinct en de bereidheid om risico's te nemen.\n*   **Focus op stabiele returns:** Tako's missie is om investeerders te helpen stabiele returns te behalen, wat duidt op een analytische en strategische benadering.\n\n**Mogelijke bedrijven:**\n\nGezien hun verschillende expertises, zouden Tako en Pieter een bedrijf kunnen starten dat deze combineert:\n\n1.  **Duurzame financiële marketing:** Een adviesbureau dat zich richt op duurzame bedrijven die investeerders willen aantrekken. Dit bedrijf zou Pieter's marketingexpertise kunnen inzetten om duurzame initiatieven op een aantrekkelijke manier te presenteren aan investeerders, terwijl Tako's financiële kennis ervoor zorgt dat de investeringsstrategieën solide en effectief zijn.\n2.  **Groeiplatform voor duurzame startups:** Een accelerator of incubator die duurzame startups helpt te groeien. Pieter zou kunnen focussen op marketing, branding en sales strategieën, terwijl Tako de financiële aspecten en de zoektocht naar investeerders op zich neemt. Dit zou een perfecte mix van hun talenten zijn.\n3.  **Fintech voor duurzaam beleggen:** Een techbedrijf dat een platform ontwikkelt voor duurzaam beleggen. Pieter's marketingkennis kan worden ingezet om de bewustwording te vergroten en gebruikers aan te trekken, terwijl Tako de financiële en technische aspecten van het platform beheert.\n4.  **Data-gedreven marketing voor duurzaamheid:** Een bureau dat data-analyse inzet om de marketingstrategieën van duurzame organisaties te optimaliseren. Tako's statistische achtergrond zou een belangrijke rol spelen bij het analyseren van data, terwijl Pieter's expertise in marketing en klantvalidatie zou helpen om de inzichten om te zetten in effectieve strategieën.\n\n**Conclusie:**\n\nHet meest logische is een bedrijf dat op een of andere manier hun expertises combineert: duurzaamheid, marketing en financiën. De precieze vorm van het bedrijf hangt af van hun gezamenlijke visie en marktonderzoek. Een bedrijf in de duurzame fintech sector of een marketingbureau dat gespecialiseerd is in het aantrekken van investeerders voor duurzame initiatieven lijkt de beste optie gezien hun gecombineerde achtergronden.\n",
+        "timestamp": 1737377095.0925634
+      }
+    ],
+    "created_at": 1737376967.3965638
+  },
+  "ee089c6d-7d7a-4d7b-a46f-675c41625e0f": {
+    "id": "ee089c6d-7d7a-4d7b-a46f-675c41625e0f",
+    "title": "project-7bf24c8e-4743-4fa1-903d-ad7a4402cc17-test project paco",
+    "messages": [],
+    "created_at": 1737643752.5404775
+  },
+  "e3f4551b-80b7-4ad6-84aa-ebc535930562": {
+    "id": "e3f4551b-80b7-4ad6-84aa-ebc535930562",
+    "title": "project-7bf24c8e-4743-4fa1-903d-ad7a4402cc17-test project paco",
+    "messages": [],
+    "created_at": 1737643791.457582
+  },
+  "5a436f8e-3fca-4728-85cd-48d5470d9ac6": {
+    "id": "5a436f8e-3fca-4728-85cd-48d5470d9ac6",
+    "title": "project-7bf24c8e-4743-4fa1-903d-ad7a4402cc17-test project paco",
+    "messages": [],
+    "created_at": 1737643841.143602
+  },
+  "8f551cfd-822a-49eb-bfef-4fcccb86bb1c": {
+    "id": "8f551cfd-822a-49eb-bfef-4fcccb86bb1c",
+    "title": "project-bf91b8c4-367e-4ecc-9a54-af7cd93f34c0-paco_test",
+    "messages": [],
+    "created_at": 1737644061.1405153
+  },
+  "8ba7cd55-61cb-4ed7-90c3-22a2f4be443f": {
+    "id": "8ba7cd55-61cb-4ed7-90c3-22a2f4be443f",
+    "title": "project-69f68c2c-2177-40f7-bf2b-9c735c582472-test_paco",
+    "messages": [],
+    "created_at": 1737644206.7160368
+  },
+  "a3c67433-75cf-4480-b132-3882b1b4b69c": {
+    "id": "a3c67433-75cf-4480-b132-3882b1b4b69c",
+    "title": "project-34670e16-d13b-48fe-9cc3-1dc063605ff1-test",
+    "messages": [],
+    "created_at": 1737644329.8515933
+  },
+  "83229d9a-f47a-4c11-bd77-f41d415b9e31": {
+    "id": "83229d9a-f47a-4c11-bd77-f41d415b9e31",
+    "title": "project-69ea9bdd-664c-43d4-a190-fb1406db8406-test",
+    "messages": [],
+    "created_at": 1737646138.5640042
+  },
+  "7947dc32-2f84-4445-a2b6-7e6fbde30ca0": {
+    "id": "7947dc32-2f84-4445-a2b6-7e6fbde30ca0",
+    "title": "paco test",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Wie is paco?",
+        "timestamp": 1737649240.778799
+      },
+      {
+        "role": "assistant",
+        "content": "I encountered an error. Please try again later.",
+        "timestamp": 1737649242.3206022
+      },
+      {
+        "role": "user",
+        "content": "Wie is paco?",
+        "timestamp": 1737649266.9227295
+      },
+      {
+        "role": "assistant",
+        "content": "I encountered an error. Please try again later.",
+        "timestamp": 1737649267.7370608
+      }
+    ],
+    "created_at": 1737649208.5849085
+  },
+  "ec7d4d76-702f-4e35-91c1-d59448cf30a4": {
+    "id": "ec7d4d76-702f-4e35-91c1-d59448cf30a4",
+    "title": "test added information paco",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Can you tell me a bit about who Paco is?",
+        "timestamp": 1738064103.2227893
+      },
+      {
+        "role": "assistant",
+        "content": "Paco de Boer is a professional with expertise in Google Cloud Platform (GCP), Natural Language Processing (NLP), and Prompt Engineering. He is passionate about online developments and is a self-learner fascinated by new technologies and their application to gain better insights and improve digital products. He is able to effectively connect with stakeholders across data, tech, UX, and marketing. \n\nHis technical skills include Python, SQL, JavaScript, HTML, and CSS. He is proficient in analytics tools such as Pandas, Google Analytics, BigQuery, and Google Sheets/Excel, and has experience with qualitative research. He also has platform experience with GCP (Cloud functions, Cloud Run, Cloud Tasks, and Pub/Sub). He is experienced with A/B testing tools, project management tools, and UX design/research.\n\nHe is currently working at DPG Media Nederland as a CRO manager, Data Analyst, and GenAI developer/consultant. He has also worked on projects that involve automated marketing email generation, automated feedback analysis, and the development of a Documentation Chat Assistant.\n",
+        "timestamp": 1738064107.9152558
+      },
+      {
+        "role": "user",
+        "content": "Where has Paco worked and what job roles?",
+        "timestamp": 1738064555.9627473
+      },
+      {
+        "role": "assistant",
+        "content": "Paco has worked at the following companies in these roles:\n\n*   **DPG Media Nederland:** CRO manager, Data Analyst, and GenAI developer/consultant (August 2023 - Present)\n*   **Emakina.NL:** Head of CRO/CXO (August 2021 - July 2023)\n*   **Greetz:** Sr. CRO specialist (November 2019 - August 2021)\n",
+        "timestamp": 1738064559.520547
+      },
+      {
+        "role": "user",
+        "content": "Show all job roles that Paco worked",
+        "timestamp": 1738064608.4205942
+      },
+      {
+        "role": "assistant",
+        "content": "Okay, here are all the job roles that Paco de Boer has held, based on the provided context:\n\n*   **CRO manager** at DPG Media Nederland\n*   **Data Analyst** at DPG Media Nederland\n*   **GenAI developer/consultant** at DPG Media Nederland\n*   **Head of CRO/CXO** at Emakina.NL\n*   **Sr. CRO specialist** at Greetz\n*   **Manager CRO & UX**\n*   **Conversion Optimization Manager**\n",
+        "timestamp": 1738064612.270217
+      },
+      {
+        "role": "user",
+        "content": "Which projects has Paco worked on?",
+        "timestamp": 1738064670.295718
+      },
+      {
+        "role": "assistant",
+        "content": "Okay, based on the provided context, here are the projects Paco de Boer has worked on:\n\n*   **Automated marketing email generation:** This project involved integrating Google Sheets, Apps Script, Cloud Functions, Python, and the OpenAI API to automate the generation of marketing emails across 70+ brands, overcoming limitations in copywriting capacity and time.\n*   **Automated feedback analysis:** He developed a system to automatically analyze user feedback from emails, categorizing topics and sentiment, allowing marketers to quickly address issues and monitor customer complaints over time.\n*   **Documentation Chat Assistant:** This project involved creating a tool that scrapes content from provided URLs and answers user questions using AI. It utilizes a Flask backend, OpenAI's GPT model, and a Streamlit frontend, all deployed on Google Cloud services.\n*   **CRO program for kiosk.nl/be:** He led the full Conversion Rate Optimization (CRO) program for these platforms, driving data-informed improvements.\n*   **Automated Bayesian statistical analyses:** He automated these analyses for multi-metric test evaluations.\n*  **Server-side A/B test creation flow:** He built a server-side A/B test creation flow using Airtable and Google Cloud Functions, reducing setup time from 15 minutes to seconds.\n*   **Automated classification system for content blockers:** Developed a Python-based system to classify business rules for content blockers.\n*   **A/A tests for A/B testing reliability:** He introduced A/A tests to uncover hidden discrepancies and improve the reliability of A/B testing.\n*  **Web analytics project:** Managed a web-analytics project from start to finish, combining the roles of a PO and business analyst.\n",
+        "timestamp": 1738064675.9232671
+      }
+    ],
+    "created_at": 1738063966.07671
+  },
+  "7e8affbb-c65e-42a4-a8d2-b804aca916b7": {
+    "id": "7e8affbb-c65e-42a4-a8d2-b804aca916b7",
+    "title": "test",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Welke projecten heeft paco?",
+        "timestamp": 1738254287.6448977
+      },
+      {
+        "role": "assistant",
+        "content": "Paco heeft de volgende projecten:\n\n*   Optimaliseren van A/B-testcreatie met geautomatiseerde tools\n*   Generatieve AI voor sentiment- en topicanalyse\n*   E-mail naar kalenderevenement(en) – Google Sheets Add-on\n*   Trustpilot Reviews Scraper & Translator\n*   Documentatie Chat Assistent: Jouw vriendelijke AI Helper\n*   Generatieve AI Artikel Samenvatter\n",
+        "timestamp": 1738254291.3281083
+      }
+    ],
+    "created_at": 1738254239.214786
+  }
+} 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\backend\conversation_store.py 
+import os
+import json
+import uuid
+import time
+import logging
+
+CONVERSATION_STORE_FILE = "conversations.json"
+
+def _load_conversations():
+    """
+    Loads all conversations from the local JSON file.
+    """
+    if not os.path.exists(CONVERSATION_STORE_FILE):
+        return {}
+    try:
+        with open(CONVERSATION_STORE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logging.error(f"Could not load conversations file: {e}")
+        return {}
+
+def _save_conversations(conversations):
+    """
+    Saves all conversations to the local JSON file.
+    """
+    try:
+        with open(CONVERSATION_STORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(conversations, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logging.error(f"Could not save conversations file: {e}")
+
+def create_conversation(title="Untitled Conversation"):
+    """
+    Creates a new conversation entry with a unique ID.
+    """
+    conversations = _load_conversations()
+    conversation_id = str(uuid.uuid4())
+    conversations[conversation_id] = {
+        "id": conversation_id,
+        "title": title,
+        "messages": [],
+        "created_at": time.time()
+    }
+    _save_conversations(conversations)
+    return conversation_id
+
+def get_conversation(conversation_id):
+    """
+    Returns a single conversation by ID, or None if not found.
+    """
+    conversations = _load_conversations()
+    return conversations.get(conversation_id)
+
+def list_conversations():
+    """
+    Returns a list of all conversations, sorted by creation time descending.
+    """
+    conversations = _load_conversations()
+    # Return as a list
+    conv_list = list(conversations.values())
+    conv_list.sort(key=lambda c: c.get("created_at", 0), reverse=True)
+    return conv_list
+
+def delete_conversation(conversation_id):
+    """
+    Deletes the conversation with the specified ID.
+    """
+    conversations = _load_conversations()
+    if conversation_id in conversations:
+        del conversations[conversation_id]
+        _save_conversations(conversations)
+        return True
+    return False
+
+def add_message_to_conversation(conversation_id, role, content):
+    """
+    Adds a message to a conversation (role = 'user' or 'assistant'),
+    returns the updated conversation or None if not found.
+    """
+    conversations = _load_conversations()
+    conv = conversations.get(conversation_id)
+    if not conv:
+        return None
+    
+    # Create a new message
+    message = {
+        "role": role,
+        "content": content,
+        "timestamp": time.time()
+    }
+    conv["messages"].append(message)
+    conversations[conversation_id] = conv
+    _save_conversations(conversations)
+    return conv
+ 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\backend\corpus_registry.json 
+{"paco linkedin": "projects/1011693889769/locations/us-central1/ragCorpora/2017612633061982208", "about paco": "projects/1011693889769/locations/us-central1/ragCorpora/3379951520341557248", "paco portfolio": "projects/1011693889769/locations/us-central1/ragCorpora/6838716034162098176"} 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\backend\Dockerfile 
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8080
+
+CMD ["python", "main.py"] 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\backend\main.py 
+import os
+import logging
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from dotenv import load_dotenv
+import json
+
+# IMPORTS from your existing code
+from scraper import scrape_documentation
+from utils import (
+    setup_logging,
+    save_scraped_data_to_gcs,
+    load_scraped_data_from_gcs,
+    create_rag_corpus,
+    import_files_to_corpus,
+    generate_rag_response,
+    load_corpus_registry,
+    save_corpus_registry,
+    handle_new_documentation,
+    extract_text_from_file,
+    cleanup_gcs_bucket_parallel,
+    GCS_BUCKET_NAME
+)
+from conversation_store import (
+    create_conversation,
+    get_conversation,
+    list_conversations,
+    delete_conversation,
+    add_message_to_conversation,
+)
+from vertexai.preview import rag
+
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app)
+setup_logging()
+
+DATA_FILE_NAME = "scraped_data.json"
+PROJECT_ID = os.environ.get("PROJECT_ID", "your-project-id")
+LOCATION = os.environ.get("LOCATION", "us-central1")
+
+logging.info(f"GCS_BUCKET_NAME: {GCS_BUCKET_NAME}")
+
+scraped_data = {}
+# If you want to load previously scraped data from GCS
+if GCS_BUCKET_NAME:
+    scraped_data = load_scraped_data_from_gcs(GCS_BUCKET_NAME, DATA_FILE_NAME)
+    if scraped_data:
+        logging.info("Scraped data is available")
+
+# Load corpus registry from local JSON
+load_corpus_registry()
+
+
+#####################################
+# Endpoint: /scrape (Creates NEW corpus)
+#####################################
+@app.route("/scrape", methods=["POST"])
+def scrape():
+    """
+    Scrape a base_url and create a NEW RAG corpus with the given display_name & description.
+    """
+    data = request.get_json()
+    base_url = data.get("base_url")
+    max_pages = data.get("max_pages", 100)
+    display_name = data.get("display_name")
+    description = data.get("description")
+
+    if not base_url or not display_name or not description:
+        return jsonify({"error": "base_url, display_name and description are required"}), 400
+
+    logging.info(f"Starting scraping of {base_url}")
+    global scraped_data
+
+    # Perform scraping
+    scraped_data = scrape_documentation(base_url, max_pages=max_pages)
+    if not scraped_data:
+        return jsonify({"error": "Could not scrape the provided base url"}), 400
+
+    # Optionally save the scraped data
+    if GCS_BUCKET_NAME:
+        save_scraped_data_to_gcs(scraped_data, GCS_BUCKET_NAME, DATA_FILE_NAME)
+
+    # Create new corpus and import data
+    response = handle_new_documentation(base_url, display_name, description, scraped_data)
+
+    if response["status"] == "OK":
+        logging.info("Documents imported to RAG Corpus")
+        save_corpus_registry()
+        return jsonify({
+            "message": "Scraping completed, data indexed with Vertex AI RAG.",
+            "corpus_name": response["corpus_name"]
+        }), 200
+    else:
+        return jsonify({"error": "Could not index the documentation."}), 400
+
+
+###################################
+# NEW Endpoint: /rag_corpora/<corpus_name>/scrape
+# Scrape a base_url and ADD to EXISTING corpus
+###################################
+@app.route("/rag_corpora/<path:corpus_name>/scrape", methods=["POST"])
+def scrape_to_existing_corpus(corpus_name):
+    """
+    Scrapes a website and imports that data into an EXISTING corpus.
+    JSON body:
+      { "base_url": "...", "max_pages": 100 }
+
+    1. Scrape up to max_pages from base_url
+    2. Convert each page to .txt
+    3. Upload those .txt files to GCS
+    4. import_files_to_corpus(corpus_name=...)
+    5. Cleanup
+    """
+    data = request.get_json()
+    base_url = data.get("base_url")
+    max_pages = data.get("max_pages", 100)
+
+    if not base_url:
+        return jsonify({"error": "base_url is required"}), 400
+
+    # Check if the corpus actually exists
+    try:
+        existing_corpus = rag.get_corpus(corpus_name)
+        if not existing_corpus:
+            return jsonify({"error": f"Corpus {corpus_name} not found."}), 404
+    except Exception as e:
+        return jsonify({"error": f"Error retrieving corpus: {e}"}), 404
+
+    # 1. Scrape
+    logging.info(f"Scraping {base_url} for existing corpus {corpus_name} ...")
+    new_data = scrape_documentation(base_url, max_pages)
+    if not new_data:
+        return jsonify({"error": "No data scraped from that base URL."}), 400
+
+    # 2. Convert and upload to GCS
+    import tempfile, os
+    paths = []
+    gcs_paths = []
+    from utils import upload_to_gcs
+
+    try:
+        # Each key in new_data is a URL, each value is the text
+        for url, text in new_data.items():
+            if not isinstance(text, str) or not text.strip():
+                continue
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as tmp_file:
+                tmp_file.write(text)
+                tmp_file_path = tmp_file.name
+                paths.append(tmp_file_path)
+
+            gcs_path = f"gs://{GCS_BUCKET_NAME}/{os.path.basename(tmp_file_path)}"
+            upload_to_gcs(GCS_BUCKET_NAME, os.path.basename(tmp_file_path), text, content_type="text/plain")
+            gcs_paths.append(gcs_path)
+
+        if not gcs_paths:
+            return jsonify({"error": "Scraped pages produced no valid text."}), 400
+
+        # 3. import_files_to_corpus
+        batch_size = 25
+        for i in range(0, len(gcs_paths), batch_size):
+            batch = gcs_paths[i : i+batch_size]
+            import_files_to_corpus(corpus_name=corpus_name, paths=batch)
+
+    finally:
+        # 4. cleanup
+        for p in paths:
+            os.remove(p)
+        cleanup_gcs_bucket_parallel(GCS_BUCKET_NAME)
+
+    return jsonify({
+        "message": f"Successfully scraped {len(new_data)} pages and imported into corpus {corpus_name}."
+    }), 200
+
+
+#####################################
+# Legacy Single Query Chat (No conversation)
+#####################################
+@app.route("/chat", methods=["POST"])
+def chat():
+    body = request.get_json()
+    query = body.get("query")
+    mode = body.get("mode", "auto")
+    selected_corpora = body.get("selected_corpora", [])
+
+    if not query:
+        return jsonify({"error": "Query is required"}), 400
+
+    rag_response = generate_rag_response(
+        query=query,
+        mode=mode,
+        manual_corpora=selected_corpora
+    )
+    if rag_response["status"] == "OK":
+        return jsonify({"response": rag_response["response"]})
+    else:
+        return jsonify({"response": rag_response["response"]}), 400
+
+
+#########################
+# Conversation-based Chat
+#########################
+@app.route("/conversations", methods=["GET"])
+def get_conversations():
+    convs = list_conversations()
+    return jsonify(convs), 200
+
+@app.route("/conversations", methods=["POST"])
+def new_conversation():
+    data = request.get_json()
+    title = data.get("title", "Untitled Conversation")
+    conversation_id = create_conversation(title)
+    return jsonify({"conversation_id": conversation_id}), 201
+
+@app.route("/conversations/<conversation_id>", methods=["GET"])
+def get_single_conversation(conversation_id):
+    conv = get_conversation(conversation_id)
+    if not conv:
+        return jsonify({"error": "Conversation not found"}), 404
+    return jsonify(conv), 200
+
+@app.route("/conversations/<conversation_id>", methods=["DELETE"])
+def delete_single_conversation(conversation_id):
+    success = delete_conversation(conversation_id)
+    if not success:
+        return jsonify({"error": "Conversation not found"}), 404
+    return jsonify({"message": "Conversation deleted"}), 200
+
+@app.route("/conversations/<conversation_id>/chat", methods=["POST"])
+def conversation_chat(conversation_id):
+    data = request.get_json()
+    user_message = data.get("message")
+    mode = data.get("mode", "auto")
+    selected_corpora = data.get("selected_corpora", [])
+
+    if not user_message:
+        return jsonify({"error": "No message provided"}), 400
+
+    conv = add_message_to_conversation(conversation_id, "user", user_message)
+    if not conv:
+        return jsonify({"error": "Conversation not found"}), 404
+
+    # Build entire chat context
+    all_messages = conv["messages"]
+    conversation_context = ""
+    for m in all_messages:
+        if m["role"] == "user":
+            conversation_context += f"\nUser: {m['content']}"
+        else:
+            conversation_context += f"\nAssistant: {m['content']}"
+
+    final_query = (
+        f"Conversation so far:\n{conversation_context}\n"
+        f"New user query: {user_message}\n"
+        "Please respond as a helpful documentation assistant, using relevant docs if available."
+    )
+
+    rag_response = generate_rag_response(
+        query=final_query,
+        mode=mode,
+        manual_corpora=selected_corpora
+    )
+    if rag_response["status"] == "OK":
+        assistant_reply = rag_response["response"]
+    else:
+        assistant_reply = "I encountered an error. Please try again later."
+
+    conv = add_message_to_conversation(conversation_id, "assistant", assistant_reply)
+    return jsonify(conv), 200
+
+
+#################################
+# RAG Corpus Management
+#################################
+@app.route("/rag_corpora", methods=["GET"])
+def list_rag_corpora():
+    try:
+        corpora = rag.list_corpora()
+        result = []
+        for c in corpora:
+            result.append({
+                "display_name": c.display_name,
+                "name": c.name
+            })
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/rag_corpora/<path:corpus_name>", methods=["DELETE"])
+def delete_rag_corpus(corpus_name):
+    try:
+        rag.delete_corpus(corpus_name)
+        return jsonify({"message": f"RAG corpus {corpus_name} deleted"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+############################################
+# FILE UPLOAD for NEW CORPUS
+############################################
+@app.route("/upload", methods=["POST"])
+def upload():
+    """
+    Create a NEW corpus from uploaded documents.
+    form-data => display_name, description, files[]
+    """
+    display_name = request.form.get("display_name")
+    description = request.form.get("description")
+    if not display_name or not description:
+        return jsonify({"error": "display_name and description are required"}), 400
+
+    uploaded_files = request.files.getlist("files")
+    if not uploaded_files:
+        return jsonify({"error": "No files uploaded"}), 400
+
+    file_texts = {}
+    for f in uploaded_files:
+        file_content = f.read()
+        parsed_text = extract_text_from_file(file_content, f.filename)
+        if parsed_text.strip():
+            file_texts[f.filename] = parsed_text
+
+    if not file_texts:
+        return jsonify({"error": "No valid text in any file"}), 400
+
+    response = handle_new_documentation("", display_name, description, file_texts)
+    if response["status"] == "OK":
+        save_corpus_registry()
+        return jsonify({
+            "message": "File(s) indexed successfully in Vertex RAG",
+            "corpus_name": response["corpus_name"]
+        }), 200
+    else:
+        return jsonify({"error": "Could not index the uploaded files."}), 400
+
+
+############################################
+# ADD FILES TO EXISTING CORPUS
+############################################
+@app.route("/rag_corpora/<path:corpus_name>/add_data", methods=["POST"])
+def add_data_to_existing_corpus(corpus_name):
+    uploaded_files = request.files.getlist("files")
+    if not uploaded_files:
+        return jsonify({"error": "No files uploaded"}), 400
+
+    # Check that the corpus actually exists
+    try:
+        existing_corpus = rag.get_corpus(corpus_name)
+        if not existing_corpus:
+            return jsonify({"error": "No such corpus."}), 404
+    except Exception as e:
+        return jsonify({"error": f"Error retrieving corpus: {e}"}), 404
+
+    file_texts = {}
+    for f in uploaded_files:
+        file_content = f.read()
+        parsed_text = extract_text_from_file(file_content, f.filename)
+        if parsed_text.strip():
+            file_texts[f.filename] = parsed_text
+
+    if not file_texts:
+        return jsonify({"error": "No valid text extracted from any file."}), 400
+
+    import tempfile, os
+    from utils import upload_to_gcs
+
+    paths = []
+    gcs_paths = []
+    try:
+        for filename, text in file_texts.items():
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as tmp_file:
+                tmp_file.write(text)
+                tmp_file_path = tmp_file.name
+                paths.append(tmp_file_path)
+
+            gcs_path = f"gs://{GCS_BUCKET_NAME}/{os.path.basename(tmp_file_path)}"
+            upload_to_gcs(GCS_BUCKET_NAME, os.path.basename(tmp_file_path), text, content_type="text/plain")
+            gcs_paths.append(gcs_path)
+
+        if not gcs_paths:
+            return jsonify({"error": "No valid documents to import"}), 400
+
+        batch_size = 25
+        for i in range(0, len(gcs_paths), batch_size):
+            batch = gcs_paths[i : i + batch_size]
+            import_files_to_corpus(corpus_name=corpus_name, paths=batch)
+    finally:
+        for path in paths:
+            os.remove(path)
+        cleanup_gcs_bucket_parallel(GCS_BUCKET_NAME)
+
+    return jsonify({"message": f"Successfully added {len(gcs_paths)} file(s) to {corpus_name}"}), 200
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return "OK", 200
+
+
+if __name__ == "__main__":
+    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+ 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\backend\requirements.txt 
+aiohappyeyeballs==2.4.4
+aiohttp==3.11.11
+aiosignal==1.3.2
+altair==5.5.0
+annotated-types==0.7.0
+anyio==4.8.0
+attrs==24.3.0
+beautifulsoup4==4.12.3
+blinker==1.9.0
+cachetools==5.5.0
+certifi==2024.12.14
+charset-normalizer==3.4.1
+click==8.1.8
+colorama==0.4.6
+dataclasses-json==0.6.7
+Deprecated==1.2.15
+distro==1.9.0
+faiss-cpu==1.9.0.post1
+Flask==3.1.0
+Flask-Cors==5.0.0
+frozenlist==1.5.0
+gitdb==4.0.12
+GitPython==3.1.44
+google-api-core==2.24.0
+google-auth==2.37.0
+google-cloud-appengine-logging==1.5.0
+google-cloud-audit-log==0.3.0
+google-cloud-core==2.4.1
+google-cloud-logging==3.11.3
+google-cloud-storage==2.19.0
+google-crc32c==1.6.0
+google-resumable-media==2.7.2
+googleapis-common-protos==1.66.0
+greenlet==3.1.1
+grpc-google-iam-v1==0.14.0
+grpcio==1.69.0
+grpcio-status==1.69.0
+h11==0.14.0
+httpcore==1.0.7
+httpx==0.28.1
+httpx-sse==0.4.0
+idna==3.10
+importlib_metadata==8.5.0
+itsdangerous==2.2.0
+Jinja2==3.1.5
+jiter==0.8.2
+jsonpatch==1.33
+jsonpointer==3.0.0
+jsonschema==4.23.0
+jsonschema-specifications==2024.10.1
+langchain==0.3.14
+langchain-community==0.3.14
+langchain-core==0.3.29
+langchain-openai==0.2.14
+langchain-text-splitters==0.3.4
+langsmith==0.2.10
+markdown-it-py==3.0.0
+MarkupSafe==3.0.2
+marshmallow==3.23.3
+mdurl==0.1.2
+multidict==6.1.0
+mypy-extensions==1.0.0
+narwhals==1.20.1
+numpy==2.2.1
+openai==1.59.3
+opentelemetry-api==1.29.0
+orjson==3.10.13
+packaging==24.2
+pandas==2.2.3
+pillow==11.1.0
+propcache==0.2.1
+proto-plus==1.25.0
+protobuf==5.29.2
+pyarrow==18.1.0
+pyasn1==0.6.1
+pyasn1_modules==0.4.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
+pydantic_core==2.27.2
+pydeck==0.9.1
+Pygments==2.19.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.0.1
+pytz==2024.2
+PyYAML==6.0.2
+referencing==0.35.1
+regex==2024.11.6
+requests==2.32.3
+requests-toolbelt==1.0.0
+rich==13.9.4
+rpds-py==0.22.3
+rsa==4.9
+six==1.17.0
+smmap==5.0.2
+sniffio==1.3.1
+soupsieve==2.6
+SQLAlchemy==2.0.36
+streamlit==1.41.1
+tenacity==9.0.0
+tiktoken==0.8.0
+toml==0.10.2
+tornado==6.4.2
+tqdm==4.67.1
+typing-inspect==0.9.0
+typing_extensions==4.12.2
+tzdata==2024.2
+urllib3==2.3.0
+watchdog==6.0.0
+Werkzeug==3.1.3
+wrapt==1.17.0
+yarl==1.18.3
+zipp==3.21.0
+google-cloud-aiplatform
+PyPDF2==3.0.1
+docx2txt
+openpyxl 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\backend\scraper.py 
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+import logging
+from typing import List, Dict, Set, Optional
+
+def is_relative_url(url: str) -> bool:
+    """Checks if a URL is relative"""
+    parsed_url = urlparse(url)
+    return not parsed_url.scheme
+
+def is_same_domain(base_url: str, url: str) -> bool:
+    """Check if both URLs have the same domain."""
+    base_domain = urlparse(base_url).netloc
+    url_domain = urlparse(url).netloc
+    return base_domain == url_domain
+
+def get_links_from_page(base_url: str, page_url: str) -> List[str]:
+    """Gets all valid links from a page."""
+    try:
+        response = requests.get(page_url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, "html.parser")
+        links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+
+        full_links = []
+        for link in links:
+           if is_relative_url(link):
+               full_link = urljoin(base_url, link)
+           else:
+              full_link = link
+           if is_same_domain(base_url, full_link):
+              full_links.append(full_link)
+        return list(set(full_links))
+    except requests.exceptions.RequestException as e:
+         logging.error(f"Error fetching {page_url}: {e}")
+         return []
+
+def extract_text_from_page(page_url: str) -> str:
+    """Extracts text from a page."""
+    try:
+        response = requests.get(page_url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, "html.parser")
+        # You might need to fine-tune this depending on the website's structure
+        text = " ".join(p.get_text() for p in soup.find_all("p")) # This might need a more custom approach
+        text += " ".join(h.get_text() for h in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]))
+        return text.strip()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error fetching {page_url}: {e}")
+        return ""
+
+
+def scrape_documentation(base_url: str, max_pages: int, scraped_data: Optional[Dict[str,str]]=None) -> Dict[str, str]:
+ """Crawls and scrapes documentation."""
+ if scraped_data is None:
+     visited: Set[str] = set()
+ else:
+     visited = set(scraped_data.keys())
+ to_visit = [base_url]
+ scraped_data = scraped_data if scraped_data else {}
+ 
+ while to_visit and len(visited) < max_pages:
+     url = to_visit.pop(0)
+     if url in visited:
+         continue
+     logging.info(f"Scraping {url}")
+     
+     visited.add(url)
+     text = extract_text_from_page(url)
+     if text:
+         scraped_data[url] = text
+     
+     links = get_links_from_page(base_url, url)
+     for link in links:
+         if link not in visited:
+            to_visit.append(link)
+ logging.info(f"Scraped {len(visited)} pages.")
+ return scraped_data 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\backend\utils.py 
+import os
+import logging
+from google.cloud import storage
+import json
+import vertexai
+from vertexai.preview import rag
+from vertexai.preview.generative_models import GenerativeModel, Tool
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
+
+import io
+import PyPDF2
+import docx2txt
+import openpyxl
+from typing import Dict, Any
+
+load_dotenv()
+
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "NO BUCKET NAME")
+PROJECT_ID = os.environ.get("PROJECT_ID", "your-project-id")
+LOCATION = os.environ.get("LOCATION", "us-central1")
+# Initialize Vertex AI API once per session
+vertexai.init(project=PROJECT_ID, location=LOCATION)
+
+# Global dictionary to store corpus name and its identifier. It can also be a database if needed
+corpus_registry = {}
+
+def setup_logging():
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    numeric_level = getattr(logging, log_level, None)
+    if not isinstance(numeric_level, int):
+        raise ValueError(f"Invalid log level: {log_level}")
+    logging.basicConfig(level=numeric_level, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def upload_to_gcs(bucket_name, filename, content, content_type="application/octet-stream"):
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(filename)
+    blob.upload_from_string(content, content_type=content_type)
+
+
+def download_from_gcs(bucket_name, filename):
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(filename)
+    if blob.exists():
+        content = blob.download_as_string()
+        logging.info(f"Downloaded {filename} from GCS bucket {bucket_name}")
+        return content
+    else:
+        logging.info(f"{filename} not found in GCS bucket {bucket_name}")
+        return None
+
+
+def save_scraped_data_to_gcs(scraped_data, bucket_name, filename):
+    try:
+        content = json.dumps(scraped_data)
+        upload_to_gcs(bucket_name, filename, content, content_type="application/json")
+        logging.info("Successfully saved scraped data to GCS")
+    except Exception as e:
+        logging.error(f"Error saving scraped data to GCS: {e}")
+
+
+def load_scraped_data_from_gcs(bucket_name, filename):
+    try:
+        content = download_from_gcs(bucket_name, filename)
+        if content:
+            return json.loads(content)
+        else:
+            return None
+    except Exception as e:
+        logging.error(f"Error loading scraped data from GCS: {e}")
+        return None
+
+
+def create_rag_corpus(display_name, description):
+    embedding_model = "text-embedding-004"
+
+    try:
+        corpora = rag.list_corpora()
+        logging.info(f"Existing corpora: {corpora}")
+        for corpus in corpora:
+            if corpus.display_name == display_name:
+                logging.info(f"RAG Corpus {display_name} already exists: {corpus.name}")
+                return corpus.name  # Return the existing corpus name
+
+        logging.info(f"Creating RAG Corpus: {display_name}")
+        corpus = rag.create_corpus(
+            display_name=display_name,
+            description=description
+        )
+        logging.info(f"RAG Corpus created: {corpus.name}")
+        return corpus.name
+    except Exception as e:
+        logging.error(f"Error creating/checking RAG corpus: {e}")
+        return False
+
+
+def import_files_to_corpus(corpus_name, paths, chunk_size=512, chunk_overlap=100, max_embedding_requests_per_min=900):
+    try:
+        response = rag.import_files(
+            corpus_name=corpus_name,
+            paths=paths,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            max_embedding_requests_per_min=max_embedding_requests_per_min,
+        )
+        logging.info(f"Imported {response.imported_rag_files_count} files to {corpus_name}.")
+    except Exception as e:
+        logging.error(f"Error uploading documents to RAG corpus: {e}")
+
+
+def cleanup_gcs_files(bucket_name, gcs_paths):
+    try:
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        for gcs_path in gcs_paths:
+            blob_name = gcs_path.replace(f"gs://{bucket_name}/", "")
+            blob = bucket.blob(blob_name)
+            if blob.exists():
+                blob.delete()
+                logging.info(f"Deleted GCS file: {gcs_path}")
+            else:
+                logging.warning(f"GCS file not found: {gcs_path}")
+    except Exception as e:
+        logging.error(f"Error during GCS cleanup: {e}")
+
+
+def cleanup_gcs_bucket_parallel(bucket_name: str, max_workers: int = 10) -> None:
+    try:
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blobs = list(bucket.list_blobs())
+
+        if not blobs:
+            logging.info(f"No files found in bucket '{bucket_name}'.")
+            return
+
+        def delete_blob(blob):
+            try:
+                blob.delete()
+                logging.info(f"Deleted GCS file: {blob.name}")
+            except Exception as e:
+                logging.error(f"Error deleting blob {blob.name}: {e}")
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            executor.map(delete_blob, blobs)
+
+        logging.info(f"All files in bucket '{bucket_name}' have been deleted.")
+    except Exception as e:
+        logging.error(f"Error during GCS bucket cleanup: {e}")
+
+
+def get_relevant_corpora(query):
+    possible_keys = list(corpus_registry.keys())
+    if not possible_keys:
+        return []
+
+    model = GenerativeModel(model_name="gemini-2.0-flash-exp")
+
+    prompt = f"""
+Given this user query: "{query}"
+You have a list of corpora: {', '.join(possible_keys)}.
+Which of these corpora are relevant?
+Return all that apply, as a comma-separated list with no additional text.
+If none apply, return "none".
+"""
+    response = model.generate_content(prompt)
+    classification = response.text.strip().lower()
+    logging.info(f"Multi-corpus classification result: '{classification}'")
+
+    if classification == "none":
+        return []
+
+    chosen_keys = [k.strip() for k in classification.split(",")]
+    chosen_keys = [ck for ck in chosen_keys if ck in corpus_registry]
+    relevant_corpus_list = [corpus_registry[ck] for ck in chosen_keys]
+    return relevant_corpus_list
+
+
+def generate_rag_response(query: str, mode: str = "auto", manual_corpora=None):
+    """
+    Generate a response from the RAG system. If mode="auto", it will
+    detect relevant corpora automatically. If mode="manual", it will
+    ONLY search within the user-provided corpora (list of display_names).
+    """
+    # If manual mode, user has provided a list of display_names
+    # which we look up in corpus_registry to get the full resource names
+    if mode == "manual" and manual_corpora:
+        corpora_list = []
+        for display_name in manual_corpora:
+            if display_name in corpus_registry:
+                corpora_list.append(corpus_registry[display_name])
+        if not corpora_list:
+            return {
+                "status": "Error",
+                "response": "No valid corpora selected or they are not registered.",
+            }
+    else:
+        # "auto" mode
+        corpora_list = get_relevant_corpora(query)
+
+    if not corpora_list:
+        return {
+            "status": "Error",
+            "response": "No relevant documentation found.",
+        }
+
+    all_retrieved_docs = []
+    for corpus_name in corpora_list:
+        try:
+            retrieval_source = rag.retrieval_query(
+                rag_resources=[rag.RagResource(
+                    rag_corpus=corpus_name,
+                )],
+                text=query,
+                similarity_top_k=5,
+            )
+            retrieved_context = " ".join(
+                [context.text for context in retrieval_source.contexts.contexts]
+            ).replace("\n", "")
+            all_retrieved_docs.extend(retrieved_context)
+        except Exception as e:
+            logging.error(f"Error retrieving from corpus {corpus_name}: {e}")
+
+    if not all_retrieved_docs:
+        return {
+            "status": "Error",
+            "response": "No matching documents across all corpora.",
+        }
+
+    context_text = "\n\n".join(all_retrieved_docs)
+    final_prompt = f"""
+####CONTEXT START:
+{context_text}
+
+####CONTEXT END
+
+Answer the following user query, use the provided context:
+
+####USER QUERY:
+{query}
+"""
+
+    rag_model = GenerativeModel(model_name="gemini-2.0-flash-exp")
+
+    try:
+        response = rag_model.generate_content(final_prompt)
+        return {
+            "status": "OK",
+            "response": response.text,
+            "corpus_used": corpora_list
+        }
+    except Exception as e:
+        logging.error(f"Error in multi-corpus generation: {e}")
+        return {
+            "status": "Error",
+            "response": "I encountered an error. Please try again later."
+        }
+
+
+def handle_new_documentation(url, display_name, description, scraped_data):
+    corpus_name = create_rag_corpus(display_name=display_name, description=description)
+    if not corpus_name:
+        return {"status": "Error", "message": "Could not create the corpus"}
+
+    paths = []
+    gcs_paths = []
+    try:
+        for url, text in scraped_data.items():
+            if not isinstance(text, str):
+                logging.warning(f"Non-string content found for URL {url}. Skipping...")
+                continue
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as tmp_file:
+                tmp_file.write(text)
+                tmp_file_path = tmp_file.name
+                paths.append(tmp_file_path)
+
+            gcs_path = f"gs://{GCS_BUCKET_NAME}/{os.path.basename(tmp_file_path)}"
+            upload_to_gcs(GCS_BUCKET_NAME, os.path.basename(tmp_file_path), text, content_type="text/plain")
+            gcs_paths.append(gcs_path)
+
+        if not gcs_paths:
+            return {"status": "Error", "message": "No valid documentation to import"}
+
+        batch_size = 25
+        for i in range(0, len(gcs_paths), batch_size):
+            batch = gcs_paths[i:i + batch_size]
+            logging.info(f"Importing batch {i // batch_size + 1} with {len(batch)} files")
+            import_files_to_corpus(corpus_name=corpus_name, paths=batch)
+    finally:
+        for path in paths:
+            os.remove(path)
+        cleanup_gcs_bucket_parallel(GCS_BUCKET_NAME)
+
+    corpus_registry[display_name] = corpus_name
+    return {"status": "OK", "message": "Documentation indexed successfully!", "corpus_name": corpus_name}
+
+
+def load_corpus_registry():
+    try:
+        with open("corpus_registry.json", "r") as f:
+            global corpus_registry
+            corpus_registry = json.load(f)
+    except FileNotFoundError:
+        logging.info("Corpus registry file not found, starting with an empty registry.")
+        corpus_registry = {}
+    logging.info(f"Corpus registry loaded: {corpus_registry}")
+
+
+def save_corpus_registry():
+    with open("corpus_registry.json", "w") as f:
+        json.dump(corpus_registry, f)
+    logging.info(f"Corpus registry saved: {corpus_registry}")
+
+
+def delete_corpora():
+    try:
+        corpora = rag.list_corpora()
+        for corpus in corpora:
+            rag.delete_corpus(corpus.name)
+            logging.info(f"Deleted RAG corpus: {corpus.name}")
+    except Exception as e:
+        logging.error(f"Error deleting RAG corpora: {e}")
+
+
+def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
+    ext = os.path.splitext(filename.lower())[1]
+
+    if ext == ".pdf":
+        try:
+            with io.BytesIO(file_bytes) as pdf_stream:
+                pdf_reader = PyPDF2.PdfReader(pdf_stream)
+                all_text = []
+                for page in pdf_reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        all_text.append(text)
+            return "\n".join(all_text)
+        except Exception as e:
+            logging.error(f"Error parsing PDF {filename}: {e}")
+            return ""
+
+    elif ext == ".docx":
+        try:
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
+                tmp.write(file_bytes)
+                tmp.flush()
+                text = docx2txt.process(tmp.name)
+            return text
+        except Exception as e:
+            logging.error(f"Error parsing DOCX {filename}: {e}")
+            return ""
+
+    elif ext == ".doc":
+        logging.warning("DOC parsing not natively supported.")
+        return ""
+
+    elif ext == ".xlsx":
+        try:
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+                tmp.write(file_bytes)
+                tmp.flush()
+                wb = openpyxl.load_workbook(tmp.name, data_only=True)
+                all_text = []
+                for sheet_name in wb.sheetnames:
+                    sheet = wb[sheet_name]
+                    for row in sheet.iter_rows(values_only=True):
+                        row_text = [str(cell) for cell in row if cell is not None]
+                        if row_text:
+                            all_text.append(" | ".join(row_text))
+                return "\n".join(all_text)
+        except Exception as e:
+            logging.error(f"Error parsing XLSX {filename}: {e}")
+            return ""
+
+    elif ext == ".xls":
+        logging.warning("XLS parsing not implemented.")
+        return ""
+
+    elif ext == ".txt":
+        try:
+            return file_bytes.decode("utf-8", errors="replace")
+        except Exception as e:
+            logging.error(f"Error parsing TXT {filename}: {e}")
+            return ""
+    else:
+        logging.warning(f"Unsupported file format for {filename}")
+        return ""
+ 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\frontend\app.py 
+import streamlit as st
+import requests
+import os
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8080")
+
+st.set_page_config(page_title="Doc Chat Assistant", layout="wide")
+
+##############################
+# SIDEBAR: Conversations
+##############################
+st.sidebar.title("Chat Sessions")
+
+# Get all existing conversations
+try:
+    resp = requests.get(f"{BACKEND_URL}/conversations")
+    resp.raise_for_status()
+    conversation_list = resp.json()
+except:
+    conversation_list = []
+
+conversation_titles = ["[New Conversation]"] + [
+    f"{c.get('title','Untitled')} ({c['id'][:8]})"
+    for c in conversation_list
+]
+selected_conversation_title = st.sidebar.selectbox(
+    "Select a conversation",
+    conversation_titles
+)
+
+if "conversation_id" not in st.session_state:
+    st.session_state["conversation_id"] = None
+
+def reload_conversations():
+    st.rerun()
+
+if selected_conversation_title == "[New Conversation]":
+    st.session_state["conversation_id"] = None
+else:
+    start_idx = selected_conversation_title.find("(")
+    end_idx = selected_conversation_title.find(")")
+    if start_idx != -1 and end_idx != -1:
+        chosen_id = selected_conversation_title[start_idx+1:end_idx]
+        for c in conversation_list:
+            if c["id"].startswith(chosen_id):
+                st.session_state["conversation_id"] = c["id"]
+                break
+
+if st.sidebar.button("Delete Current Conversation"):
+    if st.session_state["conversation_id"]:
+        requests.delete(f"{BACKEND_URL}/conversations/{st.session_state['conversation_id']}")
+        st.session_state["conversation_id"] = None
+        st.rerun()
+
+##############################
+# Manage RAG Corpora in sidebar:
+##############################
+st.sidebar.subheader("Manage RAG Corpora")
+
+# 1. Get current corpora
+try:
+    corpora_resp = requests.get(f"{BACKEND_URL}/rag_corpora")
+    corpora_resp.raise_for_status()
+    all_corpora = corpora_resp.json()  # list of {display_name, name}
+except Exception as e:
+    all_corpora = []
+    st.sidebar.error(f"Could not load corpora: {e}")
+
+if all_corpora:
+    # Let user delete a corpus
+    corpus_options = [f"{c['display_name']} | {c['name']}" for c in all_corpora]
+    selected_corpus_str = st.sidebar.selectbox("Select a corpus to delete:", corpus_options)
+    
+    if st.sidebar.button("Delete Selected Corpus"):
+        corpus_full_name = selected_corpus_str.split("|", 1)[1].strip()
+        try:
+            del_resp = requests.delete(f"{BACKEND_URL}/rag_corpora/{corpus_full_name}")
+            if del_resp.status_code == 200:
+                st.sidebar.success("Corpus deleted successfully.")
+            else:
+                st.sidebar.error(f"Error deleting corpus: {del_resp.text}")
+        except Exception as ex:
+            st.sidebar.error(f"Request failed: {ex}")
+else:
+    st.sidebar.write("No RAG corpora found.")
+
+
+##############################
+# MAIN PAGE
+##############################
+st.title("Documentation Chat Assistant")
+
+
+############################################
+# Section 1: Scrape Documentation
+############################################
+with st.expander("Scrape Documentation"):
+    st.write("Scrape docs from a website and index them in Vertex RAG.")
+
+    corpus_mode_scrape = st.radio(
+        "Corpus Mode",
+        ["Create New", "Add to Existing"],
+        horizontal=True
+    )
+
+    if corpus_mode_scrape == "Create New":
+        base_url = st.text_input("Enter documentation base URL:")
+        display_name = st.text_input("Enter a display name for the new corpus:")
+        description = st.text_area("Enter a description for the new corpus:")
+        max_pages = st.number_input("Max pages to scrape", min_value=1, value=50, step=1)
+
+        if st.button("Scrape to NEW Corpus"):
+            if not base_url or not display_name or not description:
+                st.warning("Please fill in base_url, display_name, description.")
+            else:
+                payload = {
+                    "base_url": base_url,
+                    "max_pages": max_pages,
+                    "display_name": display_name,
+                    "description": description
+                }
+                try:
+                    resp = requests.post(f"{BACKEND_URL}/scrape", json=payload)
+                    if resp.status_code == 200:
+                        st.success("Scraping completed! Data indexed in new corpus.")
+                    else:
+                        st.error(f"Error: {resp.text}")
+                except Exception as e:
+                    st.error(f"Request failed: {e}")
+
+    else:  # "Add to Existing"
+        if not all_corpora:
+            st.info("No existing corpora. Please create one first.")
+        else:
+            base_url_existing = st.text_input("Enter documentation base URL:")
+            max_pages_existing = st.number_input("Max pages to scrape", min_value=1, value=50, step=1)
+            # Choose from existing corpora
+            corpus_display_names = [c["display_name"] for c in all_corpora]
+            selected_corpus = st.selectbox("Choose existing corpus", corpus_display_names)
+
+            if st.button("Scrape & Add to EXISTING Corpus"):
+                if not base_url_existing or not selected_corpus:
+                    st.warning("Please enter base_url and select a corpus.")
+                else:
+                    # Find the full resource name
+                    corpus_full_name = None
+                    for c in all_corpora:
+                        if c["display_name"] == selected_corpus:
+                            corpus_full_name = c["name"]
+                            break
+                    if not corpus_full_name:
+                        st.error("Selected corpus not found in registry.")
+                    else:
+                        payload = {"base_url": base_url_existing, "max_pages": max_pages_existing}
+                        endpoint = f"{BACKEND_URL}/rag_corpora/{corpus_full_name}/scrape"
+                        try:
+                            resp = requests.post(endpoint, json=payload)
+                            if resp.status_code == 200:
+                                st.success(f"Scraped and imported into {selected_corpus}!")
+                            else:
+                                st.error(f"Error: {resp.text}")
+                        except Exception as ex:
+                            st.error(f"Request failed: {ex}")
+
+
+############################################
+# Section 2: Upload Documents
+############################################
+with st.expander("Upload Documents (PDF, DOCX, Excel, etc.)"):
+    st.write("Upload local files to be indexed in RAG.")
+
+    corpus_mode_upload = st.radio(
+        "Corpus Mode for Upload",
+        ["Create New", "Add to Existing"],
+        horizontal=True
+    )
+
+    uploaded_files = st.file_uploader(
+        "Select files to upload",
+        type=["pdf", "docx", "doc", "xlsx", "xls", "txt"],
+        accept_multiple_files=True
+    )
+
+    if corpus_mode_upload == "Create New":
+        display_name_upload = st.text_input("Display name for new corpus:")
+        description_upload = st.text_area("Description for new corpus:")
+
+        if st.button("Upload to NEW Corpus"):
+            if not display_name_upload or not description_upload:
+                st.warning("Please enter display name & description.")
+            elif not uploaded_files:
+                st.warning("Please select at least one file.")
+            else:
+                files_data = []
+                for f in uploaded_files:
+                    files_data.append(("files", (f.name, f.read(), f"type")))
+
+                try:
+                    resp = requests.post(
+                        f"{BACKEND_URL}/upload",
+                        data={
+                            "display_name": display_name_upload,
+                            "description": description_upload
+                        },
+                        files=files_data
+                    )
+                    if resp.status_code == 200:
+                        st.success("File(s) uploaded and indexed in new corpus!")
+                    else:
+                        st.error(f"Error: {resp.text}")
+                except Exception as e:
+                    st.error(f"Request failed: {e}")
+
+    else:
+        if not all_corpora:
+            st.info("No existing corpora. Please create one first.")
+        else:
+            corpus_display_names = [c["display_name"] for c in all_corpora]
+            selected_corpus_upload = st.selectbox("Choose existing corpus:", corpus_display_names)
+
+            if st.button("Upload Files to EXISTING Corpus"):
+                if not selected_corpus_upload or not uploaded_files:
+                    st.warning("Please select a corpus and file(s).")
+                else:
+                    corpus_full_name = None
+                    for c in all_corpora:
+                        if c["display_name"] == selected_corpus_upload:
+                            corpus_full_name = c["name"]
+                            break
+                    if not corpus_full_name:
+                        st.error("Selected corpus not found.")
+                    else:
+                        files_data = []
+                        for f in uploaded_files:
+                            files_data.append(("files", (f.name, f.read(), f"type")))
+
+                        endpoint = f"{BACKEND_URL}/rag_corpora/{corpus_full_name}/add_data"
+                        try:
+                            add_resp = requests.post(endpoint, files=files_data)
+                            if add_resp.status_code == 200:
+                                st.success("Files added successfully to existing corpus!")
+                            else:
+                                st.error(f"Error: {add_resp.text}")
+                        except Exception as e:
+                            st.error(f"Request failed: {e}")
+
+
+############################################
+# Section 3: Chat Interface
+############################################
+st.subheader("Chat Interface")
+
+if not st.session_state["conversation_id"]:
+    st.info("No conversation selected. Create a new one below:")
+    new_title = st.text_input("New conversation title", "")
+    if st.button("Start New Conversation"):
+        payload = {"title": new_title if new_title else "Untitled Conversation"}
+        try:
+            resp = requests.post(f"{BACKEND_URL}/conversations", json=payload)
+            resp.raise_for_status()
+            new_id = resp.json()["conversation_id"]
+            st.session_state["conversation_id"] = new_id
+            st.success(f"New conversation created: {new_id[:8]}")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error creating conversation: {e}")
+else:
+    conversation_id = st.session_state["conversation_id"]
+    st.write(f"**Conversation ID**: {conversation_id}")
+
+    try:
+        resp = requests.get(f"{BACKEND_URL}/conversations/{conversation_id}")
+        resp.raise_for_status()
+        conversation_data = resp.json()
+    except:
+        st.warning("Could not load conversation. It may have been deleted.")
+        st.session_state["conversation_id"] = None
+        st.rerun()
+
+    if "messages" in conversation_data:
+        for msg in conversation_data["messages"]:
+            if msg["role"] == "user":
+                st.markdown(f"**You:** {msg['content']}")
+            else:
+                st.markdown(f"**Assistant:** {msg['content']}")
+
+    st.divider()
+
+    # Let user pick auto/manual corpora selection
+    mode = st.radio("Corpora Selection Mode:", ["auto", "manual"], index=0)
+    selected_corpora_manual = []
+    if mode == "manual":
+        if all_corpora:
+            all_corpus_display_names = [c["display_name"] for c in all_corpora]
+            selected_corpora_manual = st.multiselect(
+                "Select which corpus/corpora to use:",
+                all_corpus_display_names
+            )
+        else:
+            st.info("No corpora available.")
+
+    user_input = st.text_input("Your message:")
+    if st.button("Send"):
+        if not user_input.strip():
+            st.warning("Enter a message first.")
+        else:
+            body = {
+                "message": user_input,
+                "mode": mode,
+                "selected_corpora": selected_corpora_manual
+            }
+            try:
+                resp = requests.post(
+                    f"{BACKEND_URL}/conversations/{conversation_id}/chat",
+                    json=body
+                )
+                resp.raise_for_status()
+                st.rerun()
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error sending message: {e}")
+ 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\frontend\Dockerfile 
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8501"] 
+ 
+### C:\Users\pacod\OneDrive\Bureaublad\PROJECTS\documentation-assistant\frontend\requirements.txt 
+streamlit
+requests
+python-dotenv 
+ 
